@@ -14,6 +14,7 @@
     input:focus { border-color: #3b82f6; }
     .search-btn { width: 100%; height: 44px; background: #374151; color: #fff; border: none; border-radius: 8px; margin-top: 6px; font-size: 14px; font-weight: 600; cursor: pointer; }
     .submit-btn { width: 100%; height: 50px; background: #FEE500; color: #000; border: none; border-radius: 8px; margin-top: 24px; font-size: 16px; font-weight: bold; cursor: pointer; }
+    .submit-btn:disabled { background: #e5e7eb; color: #6b7280; cursor: not-allowed; }
     .guide-txt { font-size: 11px; color: #888; margin-top: 4px; }
 
     /* 레이어 우편번호 모달 */
@@ -34,23 +35,27 @@
       width: 100%;
       max-width: 420px;
       height: 480px;
+    }
+    #postcodeLayer {
+      width: 100%;
+      height: 100%;
       background: #fff;
       border-radius: 12px;
       overflow: hidden;
     }
     #btnCloseLayer {
       position: absolute;
-      right: 12px;
-      top: 10px;
-      width: 30px;
-      height: 30px;
-      background: #333;
-      color: #fff;
+      right: 0;
+      top: -42px;
+      width: 32px;
+      height: 32px;
+      background: #fff;
+      color: #111;
       border: none;
       border-radius: 50%;
       cursor: pointer;
       font-size: 16px;
-      line-height: 30px;
+      line-height: 32px;
       text-align: center;
       z-index: 10;
     }
@@ -79,15 +84,14 @@
   <div id="layerWrap">
     <div id="layerBox">
       <button type="button" id="btnCloseLayer" onclick="closeDaumPostcode()">✕</button>
-      <div id="postcodeLayer" style="width:100%;height:100%;"></div>
+      <div id="postcodeLayer"></div>
     </div>
   </div>
 
   <script>
-    // 주신 최신 배포 URL 자동 적용
     const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwytFqKmgHKzH3x_e8AN2yQBeDzxESeVTSToXMOfOWVtpgE8XxTdPg_VS93x1lWoyE-kQ/exec";
 
-    // URL 파라미터에서 uid 가져오기 (테스트 더미값 제거, 없으면 빈값 처리)
+    // URL 파라미터에서 uid 가져오기
     const urlParams = new URLSearchParams(window.location.search);
     const kakaoUserId = urlParams.get('uid') || "";
     const kakaoNickname = urlParams.get('nick') || "";
@@ -95,6 +99,13 @@
     const phoneInput = document.getElementById('phone_number');
     const layerWrap = document.getElementById('layerWrap');
     const postcodeLayer = document.getElementById('postcodeLayer');
+
+    // uid 없이 접속하면 제출 차단
+    if (!kakaoUserId) {
+      const b = document.getElementById('submitBtn');
+      b.disabled = true;
+      b.innerText = "챗봇의 버튼으로 접속해 주세요";
+    }
 
     // 휴대폰 번호 입력 시 010-XXXX-XXXX 자동 하이픈
     phoneInput.addEventListener('input', function(e) {
@@ -136,15 +147,16 @@
       e.preventDefault();
 
       const rawPhone = phoneInput.value.replace(/[^0-9]/g, '');
-      if (rawPhone.length !== 11) {
-        alert("⚠️ 휴대폰 번호 11자리를 정확히 입력해 주세요.\n(예: 010-1234-5678)");
+      if (rawPhone.length !== 11 || !rawPhone.startsWith('010')) {
+        alert("⚠️ 올바른 휴대폰 번호(010으로 시작, 11자리)를 입력해 주세요.");
         phoneInput.focus();
         return;
       }
 
-      if (!rawPhone.startsWith('010')) {
-        alert("⚠️ 올바른 휴대폰 번호(010으로 시작)를 입력해 주세요.");
-        phoneInput.focus();
+      const baseAddr = document.getElementById('base_address').value.trim();
+      const detailAddr = document.getElementById('detail_address').value.trim();
+      if (!baseAddr) {
+        alert("⚠️ '주소 검색하기'로 기본 주소를 먼저 선택해 주세요.");
         return;
       }
 
@@ -152,29 +164,31 @@
       btn.innerText = "처리 중...";
       btn.disabled = true;
 
-      const baseAddr = document.getElementById('base_address').value.trim();
-      const detailAddr = document.getElementById('detail_address').value.trim();
-      const fullAddress = baseAddr + " " + detailAddr;
-      const formattedPhone = "'" + phoneInput.value.trim();
-
       const payload = {
         kakao_nickname: kakaoNickname,
         kakao_user_id: kakaoUserId,
         customer_name: document.getElementById('customer_name').value.trim(),
-        phone_number: formattedPhone,
-        full_address: fullAddress
+        phone_number: "'" + phoneInput.value.trim(),
+        full_address: baseAddr + " " + detailAddr
       };
 
       try {
-        await fetch(GOOGLE_SCRIPT_URL, {
+        const res = await fetch(GOOGLE_SCRIPT_URL, {
           method: "POST",
-          mode: "no-cors",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
           body: JSON.stringify(payload)
         });
-        
-        alert("✅ 배송 정보 등록이 완료되었습니다!\n채팅창으로 돌아가셔도 좋습니다.");
-        btn.innerText = "등록 완료";
+        const result = await res.json();
+
+        if (result.status === "success") {
+          alert("✅ 배송 정보 등록이 완료되었습니다!\n채팅창으로 돌아가셔도 좋습니다.");
+          btn.innerText = "등록 완료";
+        } else if (result.status === "duplicate") {
+          alert("이미 등록된 고객입니다.\n채팅창에서 '주소지 변경'을 이용해 주세요.");
+          btn.innerText = "이미 등록됨";
+        } else {
+          throw new Error(result.message || "unknown");
+        }
       } catch (err) {
         alert("일시적인 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
         btn.disabled = false;
