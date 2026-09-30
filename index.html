@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>알맹샵 배송지 등록</title>
+  <script src="https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", sans-serif; background: #f4f5f7; margin: 0; padding: 16px; }
+    .card { background: #fff; border-radius: 14px; padding: 24px 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); max-width: 420px; margin: 0 auto; position: relative; }
+    h2 { font-size: 18px; text-align: center; margin-top: 0; margin-bottom: 20px; color: #111; }
+    label { display: block; font-size: 13px; font-weight: 600; color: #4b5563; margin-top: 14px; }
+    input { width: 100%; height: 46px; border: 1px solid #d1d5db; border-radius: 8px; padding: 0 12px; margin-top: 6px; box-sizing: border-box; font-size: 15px; outline: none; }
+    input:focus { border-color: #3b82f6; }
+    .search-btn { width: 100%; height: 44px; background: #374151; color: #fff; border: none; border-radius: 8px; margin-top: 6px; font-size: 14px; font-weight: 600; cursor: pointer; }
+    .submit-btn { width: 100%; height: 50px; background: #FEE500; color: #000; border: none; border-radius: 8px; margin-top: 24px; font-size: 16px; font-weight: bold; cursor: pointer; }
+    .guide-txt { font-size: 11px; color: #888; margin-top: 4px; }
+
+    /* 레이어 우편번호 모달 */
+    #layerWrap {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.6);
+      z-index: 9999;
+      justify-content: center;
+      align-items: center;
+    }
+    #layerBox {
+      position: relative;
+      width: 100%;
+      max-width: 420px;
+      height: 480px;
+      background: #fff;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    #btnCloseLayer {
+      position: absolute;
+      right: 12px;
+      top: 10px;
+      width: 30px;
+      height: 30px;
+      background: #333;
+      color: #fff;
+      border: none;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 16px;
+      line-height: 30px;
+      text-align: center;
+      z-index: 10;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>🚚 알맹샵 배송 정보 등록</h2>
+    <form id="deliveryForm">
+      <label>입금자명 (받으시는 분)</label>
+      <input type="text" id="customer_name" placeholder="홍길동" required>
+
+      <label>연락처 (휴대폰 11자리)</label>
+      <!-- 숫자 입력 시 자동 하이픈 및 최대 13자(하이픈 포함) 제한 -->
+      <input type="tel" id="phone_number" placeholder="010-1234-5678" maxlength="13" required>
+
+      <label>주소</label>
+      <button type="button" class="search-btn" onclick="openDaumPostcode()">🔍 주소 검색하기</button>
+      <input type="text" id="base_address" placeholder="기본 주소가 자동 입력됩니다" readonly style="background:#f3f4f6; cursor:pointer;" onclick="openDaumPostcode()" required>
+      <input type="text" id="detail_address" placeholder="상세주소 입력 (예: 101동 202호)" required>
+      <div class="guide-txt">* 정확한 배송을 위해 상세주소(동/호수)까지 꼭 적어주세요.</div>
+
+      <button type="submit" class="submit-btn" id="submitBtn">등록하기</button>
+    </form>
+  </div>
+
+  <!-- 다음 우편번호 레이어 창 -->
+  <div id="layerWrap">
+    <div id="layerBox">
+      <button type="button" id="btnCloseLayer" onclick="closeDaumPostcode()">✕</button>
+      <div id="postcodeLayer" style="width:100%;height:100%;"></div>
+    </div>
+  </div>
+
+  <script>
+    // ⚠️ 구글 Apps Script 배포 URL 유지
+    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwZ1qv6flJ3jjZm3e3g6rYQw-U2xQoVkXMBgTrBM5T9N_H2s6PcDY6a6Gb4s0uxsJtS0w/exec";
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const kakaoUserId = urlParams.get('uid') || "TEST_UID_1234";
+    const kakaoNickname = urlParams.get('nick') || "테스트손님";
+
+    const phoneInput = document.getElementById('phone_number');
+    const layerWrap = document.getElementById('layerWrap');
+    const postcodeLayer = document.getElementById('postcodeLayer');
+
+    // 1. 휴대폰 번호 타이핑 시 자동 하이픈 포맷팅 로직
+    phoneInput.addEventListener('input', function(e) {
+      let numbers = e.target.value.replace(/[^0-9]/g, '');
+      if (numbers.length > 11) {
+        numbers = numbers.substring(0, 11);
+      }
+
+      if (numbers.length <= 3) {
+        e.target.value = numbers;
+      } else if (numbers.length <= 7) {
+        e.target.value = numbers.slice(0, 3) + '-' + numbers.slice(3);
+      } else {
+        e.target.value = numbers.slice(0, 3) + '-' + numbers.slice(3, 7) + '-' + numbers.slice(7);
+      }
+    });
+
+    function closeDaumPostcode() {
+      layerWrap.style.display = 'none';
+      postcodeLayer.innerHTML = '';
+    }
+
+    function openDaumPostcode() {
+      layerWrap.style.display = 'flex';
+      new daum.Postcode({
+        oncomplete: function(data) {
+          var addr = data.roadAddress || data.jibunAddress;
+          document.getElementById('base_address').value = addr;
+          closeDaumPostcode();
+          document.getElementById('detail_address').focus();
+        },
+        width: '100%',
+        height: '100%'
+      }).embed(postcodeLayer);
+    }
+
+    // 2. 폼 제출 시 11자리 유효성 검사 및 전송
+    document.getElementById('deliveryForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+
+      const rawPhone = phoneInput.value.replace(/[^0-9]/g, '');
+      
+      // 휴대폰 번호 11자리 체크 (010 시작 여부 포함)
+      if (rawPhone.length !== 11) {
+        alert("⚠️ 휴대폰 번호 11자리를 정확히 입력해 주세요.\n(예: 010-1234-5678)");
+        phoneInput.focus();
+        return;
+      }
+
+      if (!rawPhone.startsWith('010')) {
+        alert("⚠️ 올바른 휴대폰 번호(010으로 시작)를 입력해 주세요.");
+        phoneInput.focus();
+        return;
+      }
+
+      const btn = document.getElementById('submitBtn');
+      btn.innerText = "처리 중...";
+      btn.disabled = true;
+
+      const baseAddr = document.getElementById('base_address').value.trim();
+      const detailAddr = document.getElementById('detail_address').value.trim();
+      const fullAddress = baseAddr + " " + detailAddr;
+
+      // 구글 시트에서 앞자리 0이 날아가지 않도록 포맷팅된 번호 전달
+      const formattedPhone = "'" + phoneInput.value.trim();
+
+      const payload = {
+        kakao_nickname: kakaoNickname,
+        kakao_user_id: kakaoUserId,
+        customer_name: document.getElementById('customer_name').value.trim(),
+        phone_number: formattedPhone,
+        full_address: fullAddress
+      };
+
+      try {
+        await fetch(GOOGLE_SCRIPT_URL, {
+          method: "POST",
+          mode: "no-cors",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        
+        alert("✅ 배송 정보 등록이 완료되었습니다!");
+        btn.innerText = "등록 완료";
+      } catch (err) {
+        alert("일시적인 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
+        btn.disabled = false;
+        btn.innerText = "등록하기";
+      }
+    });
+  </script>
+</body>
+</html>
