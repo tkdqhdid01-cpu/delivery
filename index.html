@@ -71,9 +71,6 @@
   <div class="card">
     <h2>🚚 알맹샵 배송 정보 등록</h2>
     <form id="deliveryForm">
-      <label>카카오 닉네임</label>
-      <input type="text" id="kakao_nickname" placeholder="카카오톡 닉네임을 입력해 주세요" required>
-
       <label>입금자명 (받으시는 분 성함)</label>
       <input type="text" id="customer_name" placeholder="홍길동" required>
 
@@ -184,7 +181,6 @@
 
       const payload = {
         kakao_user_id: kakaoUserId,
-        kakao_nickname: document.getElementById('kakao_nickname').value.trim(),
         customer_name: document.getElementById('customer_name').value.trim(),
         phone_number: phoneInput.value.trim(),
         full_address: baseAddr + " " + detailAddr
