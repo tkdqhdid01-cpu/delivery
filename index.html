@@ -101,8 +101,9 @@
   </div>
 
   <script>
-    // Cloudflare Worker URL
-    const WORKER_URL = "https://autumn-cloud-8fe8.tkdqhdid01.workers.dev";
+    const SUPABASE_URL = "https://utgmqhwnztpvsvnxxlsd.supabase.co";
+    const SUPABASE_KEY = "sb_publishable_KsWWBm4ekQXEo_aobNuxfA_uC6hdn5w";
+
     const urlParams = new URLSearchParams(window.location.search);
     const kakaoUserId = (urlParams.get('uid') || "").trim();
 
@@ -149,7 +150,7 @@
       }).embed(postcodeLayer);
     }
 
-    // 폼 제출 -> Cloudflare Worker로 안전 전송 (Worker가 Supabase 저장 + 시트 비동기 적재 보장)
+    // 폼 제출 -> Supabase REST API로 직접 저장
     document.getElementById('deliveryForm').addEventListener('submit', async function(e) {
       e.preventDefault();
 
@@ -177,7 +178,6 @@
       submitBtn.disabled = true;
 
       const payload = {
-        action: "submit_delivery",
         kakao_user_id: kakaoUserId,
         customer_name: document.getElementById('customer_name').value.trim(),
         phone_number: phoneInput.value.trim(),
@@ -185,22 +185,26 @@
       };
 
       try {
-        const res = await fetch(WORKER_URL, {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/customers`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "apikey": SUPABASE_KEY,
+            "Authorization": `Bearer ${SUPABASE_KEY}`,
+            "Content-Type": "application/json",
+            "Prefer": "return=minimal"
+          },
           body: JSON.stringify(payload)
         });
 
-        const data = await res.json();
-
-        if (res.status === 200 && data.status === "success") {
+        if (res.status === 201) {
           alert("✅ 배송 정보 등록이 완료되었습니다!\n채팅창으로 돌아가셔도 좋습니다.");
           submitBtn.innerText = "등록 완료";
-        } else if (res.status === 409 || data.status === "duplicate") {
+        } else if (res.status === 409) {
           alert("이미 등록된 고객입니다.\n채팅창에서 '내정보 확인' 또는 '주소지 변경'을 이용해 주세요.");
           submitBtn.innerText = "이미 등록됨";
         } else {
-          throw new Error(data.message || "등록 실패");
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.message || `HTTP ${res.status}`);
         }
       } catch (err) {
         alert("일시적인 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
