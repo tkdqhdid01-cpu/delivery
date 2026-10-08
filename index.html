@@ -84,7 +84,6 @@
   <script>
     const SUPABASE_URL = "https://utgmqhwnztpvsvnxxlsd.supabase.co";
     const SUPABASE_KEY = "sb_publishable_KsWWBm4ekQXEo_aobNuxfA_uC6hdn5w";
-    // 방금 새로 발급하신 최신 Apps Script 배포 URL
     const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxsYWPziRp_mENdFMs1clTunTqeGzzkm6n6Xzh-hCsHTHGCHsC77lt2BknWktAt-D5KmQ/exec";
 
     const urlParams = new URLSearchParams(window.location.search);
@@ -156,8 +155,8 @@
       };
 
       try {
-        // 1. Supabase 초고속 저장
-        const supabaseReq = fetch(`${SUPABASE_URL}/rest/v1/customers`, {
+        // 1. Supabase UPSERT (on_conflict를 지정하여 기존 고객은 덮어쓰기(UPDATE) 처리)
+        const supabaseReq = fetch(`${SUPABASE_URL}/rest/v1/customers?on_conflict=kakao_user_id`, {
           method: "POST",
           headers: {
             "apikey": SUPABASE_KEY,
@@ -168,7 +167,7 @@
           body: JSON.stringify(payload)
         });
 
-        // 2. 최신 구글 스프레드시트 Web App으로 동시 전송
+        // 2. 구글 스프레드시트 Web App 전송 (기존 행 찾아 덮어쓰기)
         const sheetReq = fetch(GOOGLE_SCRIPT_URL, {
           method: "POST",
           mode: "no-cors",
@@ -178,7 +177,7 @@
 
         await Promise.all([supabaseReq, sheetReq]);
 
-        alert("✅ 배송 정보 등록이 정상 완료되었습니다!\n채팅창으로 돌아가셔도 좋습니다 😊");
+        alert("✅ 배송 정보 저장이 정상 완료되었습니다!\n채팅창으로 돌아가셔도 좋습니다 😊");
         submitBtn.innerText = "등록 완료됨";
       } catch (err) {
         alert("일시적인 오류가 발생했습니다. 다시 시도해 주세요.");
