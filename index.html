@@ -35,25 +35,21 @@
     <div class="title">🚚 알맹샵 배송 정보 등록</div>
 
     <form id="deliveryForm">
-      <!-- 1. 유튜브 닉네임 -->
       <div class="field-group">
         <label class="label" for="youtube_id">유튜브 닉네임 (아이디)</label>
         <input type="text" id="youtube_id" class="input-text" placeholder="방송에서 사용하시는 닉네임" required>
       </div>
 
-      <!-- 2. 입금자명 -->
       <div class="field-group">
         <label class="label" for="customer_name">입금자명 (받으시는 분 성함)</label>
         <input type="text" id="customer_name" class="input-text" placeholder="홍길동" required>
       </div>
 
-      <!-- 3. 연락처 -->
       <div class="field-group">
         <label class="label" for="phone_number">연락처 (휴대폰 11자리)</label>
         <input type="tel" id="phone_number" class="input-text" placeholder="010-1234-5678" maxlength="13" required>
       </div>
 
-      <!-- 4. 주소 -->
       <div class="field-group">
         <label class="label">주소</label>
         <button type="button" class="btn-search" onclick="execDaumPostcode()">🔍 주소 검색하기</button>
@@ -62,18 +58,15 @@
         <div class="guide-text">* 정확한 배송을 위해 상세주소(동/호수)까지 꼭 적어주세요.</div>
       </div>
 
-      <!-- 5. 개인정보 수집 및 제공 동의 -->
       <div class="terms-box">
         <input type="checkbox" id="privacyAgree" checked required>
         <label for="privacyAgree">(필수) 개인정보 수집 및 배송 정보 제공에 동의합니다.</label>
       </div>
 
-      <!-- 6. 제출 버튼 -->
       <button type="submit" class="btn-submit" id="submitBtn">배송 정보 등록 완료</button>
     </form>
   </div>
 
-  <!-- 레이어 팝업 -->
   <div id="layerWrap">
     <div id="layerBox">
       <button type="button" id="btnCloseLayer" onclick="closeDaumPostcode()">✕</button>
@@ -87,7 +80,7 @@
     const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxsYWPziRp_mENdFMs1clTunTqeGzzkm6n6Xzh-hCsHTHGCHsC77lt2BknWktAt-D5KmQ/exec";
 
     const urlParams = new URLSearchParams(window.location.search);
-    const kakaoChatId = urlParams.get('cid') || urlParams.get('uid') || "";
+    const kakaoChatId = (urlParams.get('cid') || urlParams.get('uid') || "").trim();
 
     const submitBtn = document.getElementById('submitBtn');
     const phoneInput = document.getElementById('phone_number');
@@ -129,6 +122,11 @@
     document.getElementById('deliveryForm').addEventListener('submit', async function(e) {
       e.preventDefault();
 
+      if (!kakaoChatId) {
+        alert("⚠️ 카카오톡 채팅방 고유 번호(cid)를 확인할 수 없습니다.\n카카오톡 대화방에서 받은 링크를 통해 접속해 주세요.");
+        return;
+      }
+
       const rawPhone = phoneInput.value.replace(/[^0-9]/g, '');
       if (rawPhone.length !== 11 || !rawPhone.startsWith('010')) {
         alert("⚠️ 올바른 휴대폰 번호(010으로 시작, 11자리)를 입력해 주세요.");
@@ -155,32 +153,66 @@
       };
 
       try {
-        // 1. Supabase UPSERT (on_conflict를 지정하여 기존 고객은 덮어쓰기(UPDATE) 처리)
-        const supabaseReq = fetch(`${SUPABASE_URL}/rest/v1/customers?on_conflict=kakao_user_id`, {
-          method: "POST",
+        // 1. Supabase에서 해당 고객이 이미 있는지 먼저 확인 (초고속 조회)
+        const checkRes = await fetch(`${SUPABASE_URL}/rest/v1/customers?kakao_user_id=eq.${encodeURIComponent(kakaoChatId)}&select=id`, {
           headers: {
             "apikey": SUPABASE_KEY,
-            "Authorization": `Bearer ${SUPABASE_KEY}`,
-            "Content-Type": "application/json",
-            "Prefer": "resolution=merge-duplicates"
-          },
-          body: JSON.stringify(payload)
+            "Authorization": `Bearer ${SUPABASE_KEY}`
+          }
         });
+        const existingData = await checkRes.json();
+        const isExisting = Array.isArray(existingData) && existingData.length > 0;
+
+        let supabaseRes;
+
+        if (isExisting) {
+          // 기존 고객: 확실하게 PATCH (UPDATE)로 해당 행 덮어쓰기
+          supabaseRes = await fetch(`${SUPABASE_URL}/rest/v1/customers?kakao_user_id=eq.${encodeURIComponent(kakaoChatId)}`, {
+            method: "PATCH",
+            headers: {
+              "apikey": SUPABASE_KEY,
+              "Authorization": `Bearer ${SUPABASE_KEY}`,
+              "Content-Type": "application/json",
+              "Prefer": "return=minimal"
+            },
+            body: JSON.stringify({
+              youtube_id: payload.youtube_id,
+              customer_name: payload.customer_name,
+              phone_number: payload.phone_number,
+              full_address: payload.full_address
+            })
+          });
+        } else {
+          // 신규 고객: POST (INSERT)
+          supabaseRes = await fetch(`${SUPABASE_URL}/rest/v1/customers`, {
+            method: "POST",
+            headers: {
+              "apikey": SUPABASE_KEY,
+              "Authorization": `Bearer ${SUPABASE_KEY}`,
+              "Content-Type": "application/json",
+              "Prefer": "return=minimal"
+            },
+            body: JSON.stringify(payload)
+          });
+        }
+
+        if (!supabaseRes.ok) {
+          const errDetail = await supabaseRes.text();
+          throw new Error(`DB 저장 오류 (${supabaseRes.status}): ${errDetail}`);
+        }
 
         // 2. 구글 스프레드시트 Web App 전송 (기존 행 찾아 덮어쓰기)
-        const sheetReq = fetch(GOOGLE_SCRIPT_URL, {
+        await fetch(GOOGLE_SCRIPT_URL, {
           method: "POST",
           mode: "no-cors",
           headers: { "Content-Type": "text/plain" },
           body: JSON.stringify(payload)
         });
 
-        await Promise.all([supabaseReq, sheetReq]);
-
         alert("✅ 배송 정보 저장이 정상 완료되었습니다!\n채팅창으로 돌아가셔도 좋습니다 😊");
         submitBtn.innerText = "등록 완료됨";
       } catch (err) {
-        alert("일시적인 오류가 발생했습니다. 다시 시도해 주세요.");
+        alert(err.message || "오류가 발생했습니다.");
         submitBtn.disabled = false;
         submitBtn.innerText = "배송 정보 등록 완료";
       }
