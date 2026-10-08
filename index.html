@@ -123,7 +123,7 @@
       e.preventDefault();
 
       if (!kakaoChatId) {
-        alert("⚠️ 카카오톡 채팅방 고유 번호(cid)를 확인할 수 없습니다.\n카카오톡 대화방에서 받은 링크를 통해 접속해 주세요.");
+        alert("⚠️ 카카오 채팅방 식별 번호가 누락되었습니다.\n카카오톡 대화방에서 받은 링크로 접속해 주세요.");
         return;
       }
 
@@ -153,55 +153,25 @@
       };
 
       try {
-        // 1. Supabase에서 해당 고객이 이미 있는지 먼저 확인 (초고속 조회)
-        const checkRes = await fetch(`${SUPABASE_URL}/rest/v1/customers?kakao_user_id=eq.${encodeURIComponent(kakaoChatId)}&select=id`, {
+        // [1] Supabase 공식 UPSERT 요청 (on_conflict 명시)
+        const supabaseRes = await fetch(`${SUPABASE_URL}/rest/v1/customers?on_conflict=kakao_user_id`, {
+          method: "POST",
           headers: {
             "apikey": SUPABASE_KEY,
-            "Authorization": `Bearer ${SUPABASE_KEY}`
-          }
+            "Authorization": `Bearer ${SUPABASE_KEY}`,
+            "Content-Type": "application/json",
+            "Prefer": "resolution=merge-duplicates,return=minimal"
+          },
+          body: JSON.stringify(payload)
         });
-        const existingData = await checkRes.json();
-        const isExisting = Array.isArray(existingData) && existingData.length > 0;
 
-        let supabaseRes;
-
-        if (isExisting) {
-          // 기존 고객: 확실하게 PATCH (UPDATE)로 해당 행 덮어쓰기
-          supabaseRes = await fetch(`${SUPABASE_URL}/rest/v1/customers?kakao_user_id=eq.${encodeURIComponent(kakaoChatId)}`, {
-            method: "PATCH",
-            headers: {
-              "apikey": SUPABASE_KEY,
-              "Authorization": `Bearer ${SUPABASE_KEY}`,
-              "Content-Type": "application/json",
-              "Prefer": "return=minimal"
-            },
-            body: JSON.stringify({
-              youtube_id: payload.youtube_id,
-              customer_name: payload.customer_name,
-              phone_number: payload.phone_number,
-              full_address: payload.full_address
-            })
-          });
-        } else {
-          // 신규 고객: POST (INSERT)
-          supabaseRes = await fetch(`${SUPABASE_URL}/rest/v1/customers`, {
-            method: "POST",
-            headers: {
-              "apikey": SUPABASE_KEY,
-              "Authorization": `Bearer ${SUPABASE_KEY}`,
-              "Content-Type": "application/json",
-              "Prefer": "return=minimal"
-            },
-            body: JSON.stringify(payload)
-          });
-        }
-
+        // Supabase에서 에러 발생 시 원인 바로 알림
         if (!supabaseRes.ok) {
-          const errDetail = await supabaseRes.text();
-          throw new Error(`DB 저장 오류 (${supabaseRes.status}): ${errDetail}`);
+          const errText = await supabaseRes.text();
+          throw new Error(`[Supabase 오류 ${supabaseRes.status}] ${errText}`);
         }
 
-        // 2. 구글 스프레드시트 Web App 전송 (기존 행 찾아 덮어쓰기)
+        // [2] 구글 시트 웹앱 전송
         await fetch(GOOGLE_SCRIPT_URL, {
           method: "POST",
           mode: "no-cors",
@@ -209,9 +179,11 @@
           body: JSON.stringify(payload)
         });
 
-        alert("✅ 배송 정보 저장이 정상 완료되었습니다!\n채팅창으로 돌아가셔도 좋습니다 😊");
-        submitBtn.innerText = "등록 완료됨";
+        alert("✅ 배송 정보가 정상적으로 수정되었습니다!\n채팅창으로 돌아가셔도 좋습니다 😊");
+        submitBtn.innerText = "수정 완료됨";
+
       } catch (err) {
+        console.error(err);
         alert(err.message || "오류가 발생했습니다.");
         submitBtn.disabled = false;
         submitBtn.innerText = "배송 정보 등록 완료";
