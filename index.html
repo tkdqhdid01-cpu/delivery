@@ -4,8 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>알맹샵 배송 정보 등록</title>
-  <!-- 카카오 공식 최신 CDN 스크립트 -->
-  <script src="https://t1.kakaocdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
   <style>
     * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
     body { background-color: #f7f8fa; margin: 0; padding: 20px 16px; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
@@ -24,11 +22,14 @@
     .btn-submit { width: 100%; height: 50px; background-color: #fee500; color: #111; font-size: 16px; font-weight: 700; border: none; border-radius: 8px; cursor: pointer; transition: opacity 0.2s; }
     .btn-submit:disabled { background-color: #e5e5e5; color: #999; cursor: not-allowed; }
 
-    /* 주소검색 레이어 창 (모바일 & PC 완벽 대응) */
-    #layerWrap { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.65); z-index: 999999; justify-content: center; align-items: center; padding: 12px; }
-    #layerBox { position: relative; width: 100%; max-width: 440px; height: 480px; background: #ffffff; border-radius: 14px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
-    #btnCloseLayer { position: absolute; right: 10px; top: 10px; width: 34px; height: 34px; background: #111; color: #fff; border: none; border-radius: 50%; cursor: pointer; font-size: 16px; font-weight: bold; line-height: 34px; text-align: center; z-index: 1000; }
+    /* 다음 우편번호 레이어 창 */
+    #layerWrap { display: none; position: fixed; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.65); z-index: 999999; justify-content: center; align-items: center; }
+    #layerBox { position: relative; width: 100%; max-width: 440px; height: 470px; background: #fff; border-radius: 12px; overflow: hidden; }
+    #btnCloseLayer { position: absolute; right: 10px; top: 10px; width: 32px; height: 32px; background: #222; color: #fff; border: none; border-radius: 50%; cursor: pointer; font-size: 16px; font-weight: bold; line-height: 32px; text-align: center; z-index: 10; }
   </style>
+
+  <!-- 다음 우편번호 공식 라이브러리 -->
+  <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
 </head>
 <body>
 
@@ -57,28 +58,28 @@
       <!-- 4. 주소 -->
       <div class="field-group">
         <label class="label">주소</label>
-        <button type="button" id="btnSearchAddr" class="btn-search">🔍 주소 검색하기</button>
-        <input type="text" id="base_address" class="input-text" placeholder="기본 주소가 자동 입력됩니다" readonly required style="margin-bottom: 8px;">
+        <button type="button" class="btn-search" onclick="execDaumPostcode()">🔍 주소 검색하기</button>
+        <input type="text" id="base_address" class="input-text" placeholder="기본 주소가 자동 입력됩니다" readonly onclick="execDaumPostcode()" required style="margin-bottom: 8px;">
         <input type="text" id="detail_address" class="input-text" placeholder="상세주소 입력 (예: 101동 202호)" required>
         <div class="guide-text">* 정확한 배송을 위해 상세주소(동/호수)까지 꼭 적어주세요.</div>
       </div>
 
-      <!-- 5. 개인정보 동의 -->
+      <!-- 5. 동의 -->
       <div class="terms-box">
         <input type="checkbox" id="privacyAgree" checked required>
         <label for="privacyAgree">(필수) 개인정보 수집 및 배송 정보 제공에 동의합니다.</label>
       </div>
 
-      <!-- 6. 제출 버튼 -->
+      <!-- 6. 버튼 -->
       <button type="submit" class="btn-submit" id="submitBtn">배송 정보 등록 완료</button>
     </form>
   </div>
 
-  <!-- 주소 검색 레이어 팝업 -->
+  <!-- 레이어 팝업 -->
   <div id="layerWrap">
     <div id="layerBox">
-      <button type="button" id="btnCloseLayer">✕</button>
-      <div id="postcodeLayer" style="width:100%;height:100%;"></div>
+      <button type="button" id="btnCloseLayer" onclick="closeDaumPostcode()">✕</button>
+      <div id="postcodeContainer" style="width:100%;height:100%;"></div>
     </div>
   </div>
 
@@ -93,12 +94,9 @@
     const submitBtn = document.getElementById('submitBtn');
     const phoneInput = document.getElementById('phone_number');
     const layerWrap = document.getElementById('layerWrap');
-    const postcodeLayer = document.getElementById('postcodeLayer');
-    const btnCloseLayer = document.getElementById('btnCloseLayer');
-    const btnSearchAddr = document.getElementById('btnSearchAddr');
-    const baseAddrInput = document.getElementById('base_address');
+    const container = document.getElementById('postcodeContainer');
 
-    // 휴대폰 번호 하이픈 자동 변환
+    // 하이픈 포맷팅
     phoneInput.addEventListener('input', function(e) {
       let val = e.target.value.replace(/[^0-9]/g, '');
       if (val.length > 3 && val.length <= 7) {
@@ -109,42 +107,32 @@
       e.target.value = val;
     });
 
-    // 주소 레이어 닫기
-    function closePostcode() {
+    function closeDaumPostcode() {
       layerWrap.style.display = 'none';
-      postcodeLayer.innerHTML = '';
+      container.innerHTML = '';
     }
-    btnCloseLayer.addEventListener('click', closePostcode);
 
-    // 주소 검색 실행 함수 (kakao/daum 네임스페이스 자동 대응)
-    function openPostcode() {
-      layerWrap.style.display = 'flex';
-      
-      const PostcodeClass = (window.kakao && window.kakao.Postcode) || (window.daum && window.daum.Postcode);
-      
-      if (!PostcodeClass) {
-        alert("주소 검색 모듈을 불러오는 중입니다. 1~2초 후 다시 눌러주세요.");
-        layerWrap.style.display = 'none';
+    // 주소 검색 실행
+    function execDaumPostcode() {
+      if (typeof daum === 'undefined' || !daum.Postcode) {
+        alert("주소 검색 스크립트를 불러오는 중입니다. 1~2초 후 다시 눌러주세요.");
         return;
       }
 
-      new PostcodeClass({
+      layerWrap.style.display = 'flex';
+      new daum.Postcode({
         oncomplete: function(data) {
-          const addr = data.roadAddress || data.jibunAddress;
-          baseAddrInput.value = addr;
-          closePostcode();
+          var addr = data.roadAddress || data.jibunAddress;
+          document.getElementById('base_address').value = addr;
+          closeDaumPostcode();
           document.getElementById('detail_address').focus();
         },
         width: '100%',
         height: '100%'
-      }).embed(postcodeLayer);
+      }).embed(container);
     }
 
-    // 주소 검색 버튼 및 기본주소 인풋창 클릭 시 모두 열림
-    btnSearchAddr.addEventListener('click', openPostcode);
-    baseAddrInput.addEventListener('click', openPostcode);
-
-    // 폼 제출 핸들러 (Supabase + 구글 시트 동시 전송)
+    // 폼 제출
     document.getElementById('deliveryForm').addEventListener('submit', async function(e) {
       e.preventDefault();
 
@@ -155,7 +143,7 @@
         return;
       }
 
-      const baseAddr = baseAddrInput.value.trim();
+      const baseAddr = document.getElementById('base_address').value.trim();
       const detailAddr = document.getElementById('detail_address').value.trim();
       if (!baseAddr) {
         alert("⚠️ '주소 검색하기' 버튼을 눌러 기본 주소를 먼저 선택해 주세요.");
