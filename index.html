@@ -4,11 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>알맹샵 배송 정보 등록</title>
-  <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
+  <!-- HTTPS 명시 로드 -->
+  <script src="https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
   <style>
     * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
     body { background-color: #f7f8fa; margin: 0; padding: 20px 16px; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
-    .card { background: #ffffff; border-radius: 16px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08); width: 100%; max-width: 440px; padding: 24px 20px; }
+    .card { background: #ffffff; border-radius: 16px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08); width: 100%; max-width: 440px; padding: 24px 20px; position: relative; }
     .title { font-size: 18px; font-weight: 700; text-align: center; margin-bottom: 24px; color: #111; }
     .field-group { margin-bottom: 16px; }
     .label { font-size: 13px; font-weight: 600; color: #333; margin-bottom: 6px; display: block; }
@@ -22,6 +23,11 @@
     .terms-box label { font-size: 12px; color: #444; cursor: pointer; }
     .btn-submit { width: 100%; height: 50px; background-color: #fee500; color: #111; font-size: 16px; font-weight: 700; border: none; border-radius: 8px; cursor: pointer; transition: opacity 0.2s; }
     .btn-submit:disabled { background-color: #e5e5e5; color: #999; cursor: not-allowed; }
+
+    /* 주소검색 레이어 (팝업 차단 원천 방지) */
+    #layerWrap { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.65); z-index: 99999; justify-content: center; align-items: center; padding: 16px; }
+    #layerBox { position: relative; width: 100%; max-width: 440px; height: 470px; background: #ffffff; border-radius: 14px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+    #btnCloseLayer { position: absolute; right: 10px; top: 8px; width: 32px; height: 32px; background: #222; color: #fff; border: none; border-radius: 50%; cursor: pointer; font-size: 16px; font-weight: bold; line-height: 32px; text-align: center; z-index: 10; }
   </style>
 </head>
 <body>
@@ -30,7 +36,7 @@
     <div class="title">🚚 알맹샵 배송 정보 등록</div>
 
     <form id="deliveryForm">
-      <!-- 1. 유튜브 닉네임 입력칸 -->
+      <!-- 1. 유튜브 닉네임 -->
       <div class="field-group">
         <label class="label" for="youtube_id">유튜브 닉네임 (아이디)</label>
         <input type="text" id="youtube_id" class="input-text" placeholder="방송에서 사용하시는 닉네임" required>
@@ -57,19 +63,128 @@
         <div class="guide-text">* 정확한 배송을 위해 상세주소(동/호수)까지 꼭 적어주세요.</div>
       </div>
 
-      <!-- 5. 개인정보 수집 동의 -->
+      <!-- 5. 동의 -->
       <div class="terms-box">
         <input type="checkbox" id="privacyAgree" checked required>
         <label for="privacyAgree">(필수) 개인정보 수집 및 배송 정보 제공에 동의합니다.</label>
       </div>
 
-      <!-- 6. 등록 버튼 -->
+      <!-- 6. 버튼 -->
       <button type="submit" class="btn-submit" id="submitBtn">배송 정보 등록 완료</button>
     </form>
+  </div>
+
+  <!-- 주소 검색 레이어 모달 창 -->
+  <div id="layerWrap">
+    <div id="layerBox">
+      <button type="button" id="btnCloseLayer" onclick="closeDaumPostcode()">✕</button>
+      <div id="postcodeLayer" style="width:100%;height:100%;"></div>
+    </div>
   </div>
 
   <script>
     const SUPABASE_URL = "https://utgmqhwnztpvsvnxxlsd.supabase.co";
     const SUPABASE_KEY = "sb_publishable_KsWWBm4ekQXEo_aobNuxfA_uC6hdn5w";
-    // 대표님의 구글 스프레드시트 Apps Script 배포 URL
-    const GOOGLE_SCRIPT_URL = "
+    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwytFqKmgHKzH3x_e8AN2yQBeDzxESeVTSToXMOfOWVtpgE8XxTdPg_VS93x1lWoyE-kQ/exec";
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const kakaoChatId = urlParams.get('cid') || urlParams.get('uid') || "";
+
+    const submitBtn = document.getElementById('submitBtn');
+    const phoneInput = document.getElementById('phone_number');
+    const layerWrap = document.getElementById('layerWrap');
+    const postcodeLayer = document.getElementById('postcodeLayer');
+
+    // 휴대폰 번호 하이픈 자동 변환
+    phoneInput.addEventListener('input', function(e) {
+      let val = e.target.value.replace(/[^0-9]/g, '');
+      if (val.length > 3 && val.length <= 7) {
+        val = val.slice(0, 3) + '-' + val.slice(3);
+      } else if (val.length > 7) {
+        val = val.slice(0, 3) + '-' + val.slice(3, 7) + '-' + val.slice(7, 11);
+      }
+      e.target.value = val;
+    });
+
+    // 주소 검색창 닫기
+    function closeDaumPostcode() {
+      layerWrap.style.display = 'none';
+      postcodeLayer.innerHTML = '';
+    }
+
+    // 주소 검색창 열기 (레이어 삽입 방식 - 팝업 차단 없음)
+    function openDaumPostcode() {
+      layerWrap.style.display = 'flex';
+      new daum.Postcode({
+        oncomplete: function(data) {
+          const addr = data.roadAddress || data.jibunAddress;
+          document.getElementById('base_address').value = addr;
+          closeDaumPostcode();
+          document.getElementById('detail_address').focus();
+        },
+        width: '100%',
+        height: '100%'
+      }).embed(postcodeLayer);
+    }
+
+    // 폼 제출
+    document.getElementById('deliveryForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+
+      const rawPhone = phoneInput.value.replace(/[^0-9]/g, '');
+      if (rawPhone.length !== 11 || !rawPhone.startsWith('010')) {
+        alert("⚠️ 올바른 휴대폰 번호(010으로 시작, 11자리)를 입력해 주세요.");
+        phoneInput.focus();
+        return;
+      }
+
+      const baseAddr = document.getElementById('base_address').value.trim();
+      const detailAddr = document.getElementById('detail_address').value.trim();
+      if (!baseAddr) {
+        alert("⚠️ '주소 검색하기' 버튼을 눌러 기본 주소를 먼저 선택해 주세요.");
+        return;
+      }
+
+      submitBtn.innerText = "저장 중...";
+      submitBtn.disabled = true;
+
+      const payload = {
+        kakao_user_id: kakaoChatId,
+        youtube_id: document.getElementById('youtube_id').value.trim(),
+        customer_name: document.getElementById('customer_name').value.trim(),
+        phone_number: phoneInput.value.trim(),
+        full_address: baseAddr + " " + detailAddr
+      };
+
+      try {
+        const supabasePromise = fetch(`${SUPABASE_URL}/rest/v1/customers`, {
+          method: "POST",
+          headers: {
+            "apikey": SUPABASE_KEY,
+            "Authorization": `Bearer ${SUPABASE_KEY}`,
+            "Content-Type": "application/json",
+            "Prefer": "resolution=merge-duplicates"
+          },
+          body: JSON.stringify(payload)
+        });
+
+        const sheetPromise = fetch(GOOGLE_SCRIPT_URL, {
+          method: "POST",
+          mode: "no-cors",
+          headers: { "Content-Type": "text/plain" },
+          body: JSON.stringify(payload)
+        });
+
+        await Promise.all([supabasePromise, sheetPromise]);
+
+        alert("✅ 배송 정보 등록이 정상 완료되었습니다!\n채팅창으로 돌아가셔도 좋습니다 😊");
+        submitBtn.innerText = "등록 완료됨";
+      } catch (err) {
+        alert("일시적인 오류가 발생했습니다. 다시 시도해 주세요.");
+        submitBtn.disabled = false;
+        submitBtn.innerText = "배송 정보 등록 완료";
+      }
+    });
+  </script>
+</body>
+</html>
