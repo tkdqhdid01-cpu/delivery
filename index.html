@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>알맹샵 배송 정보 등록</title>
+  <!-- 다음 우편번호 공식 라이브러리 -->
+  <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
   <style>
     * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
     body { background-color: #f7f8fa; margin: 0; padding: 20px 16px; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
@@ -27,9 +29,6 @@
     #layerBox { position: relative; width: 100%; max-width: 440px; height: 470px; background: #fff; border-radius: 12px; overflow: hidden; }
     #btnCloseLayer { position: absolute; right: 10px; top: 10px; width: 32px; height: 32px; background: #222; color: #fff; border: none; border-radius: 50%; cursor: pointer; font-size: 16px; font-weight: bold; line-height: 32px; text-align: center; z-index: 10; }
   </style>
-
-  <!-- 다음 우편번호 공식 라이브러리 -->
-  <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
 </head>
 <body>
 
@@ -64,13 +63,13 @@
         <div class="guide-text">* 정확한 배송을 위해 상세주소(동/호수)까지 꼭 적어주세요.</div>
       </div>
 
-      <!-- 5. 동의 -->
+      <!-- 5. 개인정보 수집 및 제공 동의 -->
       <div class="terms-box">
         <input type="checkbox" id="privacyAgree" checked required>
         <label for="privacyAgree">(필수) 개인정보 수집 및 배송 정보 제공에 동의합니다.</label>
       </div>
 
-      <!-- 6. 버튼 -->
+      <!-- 6. 제출 버튼 -->
       <button type="submit" class="btn-submit" id="submitBtn">배송 정보 등록 완료</button>
     </form>
   </div>
@@ -86,8 +85,8 @@
   <script>
     const SUPABASE_URL = "https://utgmqhwnztpvsvnxxlsd.supabase.co";
     const SUPABASE_KEY = "sb_publishable_KsWWBm4ekQXEo_aobNuxfA_uC6hdn5w";
-    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwytFqKmgHKzH3x_e8AN2yQBeDzxESeVTSToXMOfOWVtpgE8XxTdPg_VS93x1lWoyE-kQ/exec";
 
+    // URL 파라미터에서 채팅방 고유 ID 추출 (?cid=... 또는 ?uid=...)
     const urlParams = new URLSearchParams(window.location.search);
     const kakaoChatId = urlParams.get('cid') || urlParams.get('uid') || "";
 
@@ -96,7 +95,7 @@
     const layerWrap = document.getElementById('layerWrap');
     const container = document.getElementById('postcodeContainer');
 
-    // 하이픈 포맷팅
+    // 휴대폰 번호 하이픈 자동 포맷팅
     phoneInput.addEventListener('input', function(e) {
       let val = e.target.value.replace(/[^0-9]/g, '');
       if (val.length > 3 && val.length <= 7) {
@@ -107,6 +106,7 @@
       e.target.value = val;
     });
 
+    // 주소 검색 레이어 닫기
     function closeDaumPostcode() {
       layerWrap.style.display = 'none';
       container.innerHTML = '';
@@ -132,7 +132,7 @@
       }).embed(container);
     }
 
-    // 폼 제출
+    // 폼 제출 핸들러 (Supabase 단일 저장 파이프라인)
     document.getElementById('deliveryForm').addEventListener('submit', async function(e) {
       e.preventDefault();
 
@@ -162,7 +162,7 @@
       };
 
       try {
-        const supabasePromise = fetch(`${SUPABASE_URL}/rest/v1/customers`, {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/customers`, {
           method: "POST",
           headers: {
             "apikey": SUPABASE_KEY,
@@ -173,17 +173,12 @@
           body: JSON.stringify(payload)
         });
 
-        const sheetPromise = fetch(GOOGLE_SCRIPT_URL, {
-          method: "POST",
-          mode: "no-cors",
-          headers: { "Content-Type": "text/plain" },
-          body: JSON.stringify(payload)
-        });
-
-        await Promise.all([supabasePromise, sheetPromise]);
-
-        alert("✅ 배송 정보 등록이 정상 완료되었습니다!\n채팅창으로 돌아가셔도 좋습니다 😊");
-        submitBtn.innerText = "등록 완료됨";
+        if (res.ok) {
+          alert("✅ 배송 정보 등록이 정상 완료되었습니다!\n채팅창으로 돌아가셔도 좋습니다 😊");
+          submitBtn.innerText = "등록 완료됨";
+        } else {
+          throw new Error("저장 실패");
+        }
       } catch (err) {
         alert("일시적인 오류가 발생했습니다. 다시 시도해 주세요.");
         submitBtn.disabled = false;
