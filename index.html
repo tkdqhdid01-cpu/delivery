@@ -366,7 +366,7 @@
         return;
       }
 
-      // 5. 기본 주소 검증 (우편번호 검색 필수)
+      // 5. 기본 주소 검증
       const baseAddr = document.getElementById('base_address').value.trim();
       if (!baseAddr) {
         alert("🔍 [주소 검색하기] 버튼을 눌러 기본 주소를 먼저 검색해 주세요!");
@@ -393,7 +393,9 @@
       btn.innerText = "안전하게 저장 중...";
       btn.disabled = true;
 
-      const formattedNick = `[${platform}] ${liveNick}`;
+      // [핵심] 플랫폼에 따라 유튜브 ID / 틱톡 ID 컬럼 분기 분리
+      const youtubeVal = (platform === '유튜브') ? liveNick : null;
+      const tiktokVal = (platform === '틱톡') ? liveNick : null;
       const fullAddress = `${baseAddr} ${detailAddr}`.trim();
 
       const payload = {
@@ -403,13 +405,14 @@
         customer_name: customerName,
         phone_number: phoneNumber,
         full_address: fullAddress,
-        youtube_id: formattedNick,
+        youtube_id: youtubeVal,
+        tiktok_id: tiktokVal,
         platform: platform,
         updated_at: new Date().toISOString()
       };
 
       try {
-        // 1. Supabase DB 저장
+        // 1. Supabase DB 저장 (youtube_id, tiktok_id 각각 저장)
         await fetch(`${SUPABASE_URL}/rest/v1/customers`, {
           method: "POST",
           headers: {
