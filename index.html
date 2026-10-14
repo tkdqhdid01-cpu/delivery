@@ -27,19 +27,9 @@
       font-size: 20px;
       text-align: center;
       margin-top: 0;
-      margin-bottom: 20px;
+      margin-bottom: 24px;
       color: #111;
       font-weight: bold;
-    }
-    .notice-box {
-      background: #fff8e1;
-      border-left: 4px solid #ffb300;
-      padding: 10px 12px;
-      font-size: 13px;
-      color: #795548;
-      border-radius: 4px;
-      margin-bottom: 18px;
-      line-height: 1.5;
     }
     label {
       display: block;
@@ -121,10 +111,6 @@
 <body>
   <div class="card">
     <h2>🚚 알맹샵 배송 정보 등록</h2>
-    
-    <div class="notice-box">
-      📌 <b>정확한 배송을 위해</b> 유튜브 닉네임과 상세 주소(동·호수)를 정확하게 입력해 주세요!
-    </div>
 
     <form id="deliveryForm">
       <label>유튜브 닉네임 (선택)</label>
@@ -248,7 +234,6 @@
       const fullAddress = baseAddr + " " + detailAddr;
       const ytNick = document.getElementById('youtube_nick').value.trim();
 
-      // 전송용 페이로드: 틱톡 제거, 순수 유튜브 닉네임만 포함
       const payload = {
         kakao_user_id: kakaoUserId,
         customer_name: customerName,
