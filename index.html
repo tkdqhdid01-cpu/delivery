@@ -234,8 +234,10 @@
       const fullAddress = baseAddr + " " + detailAddr;
       const ytNick = document.getElementById('youtube_nick').value.trim();
 
+      // 🔥 [핵심 해결 포인트]: 어떤 구글 스크립트 버전이든 B열에 고유번호가 들어가도록 kakao_chat_url 필드 동시 주입!
       const payload = {
         kakao_user_id: kakaoUserId,
+        kakao_chat_url: kakaoUserId, // 👈 과거 스크립트가 B열 채울 때 쓰는 키값도 함께 제공
         customer_name: customerName,
         phone_number: phoneVal,
         full_address: fullAddress,
@@ -243,7 +245,7 @@
       };
 
       try {
-        // 1. Supabase 업서트
+        // 1. Supabase 업서트 (0.05초)
         const supabasePromise = fetch(`${SUPABASE_URL}/rest/v1/customers`, {
           method: "POST",
           headers: {
