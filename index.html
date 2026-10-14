@@ -69,7 +69,6 @@
     .platform-btn:hover {
       background: #f3f4f6;
     }
-    /* 선택 활성화 스타일 */
     .platform-btn.active.yt {
       border-color: #ff0000;
       background: #fff5f5;
@@ -198,9 +197,9 @@
 
   <div class="card" id="formCard">
     <h2>🚚 배송지 등록</h2>
-    <form id="deliveryForm">
+    <form id="deliveryForm" novalidate>
 
-      <!-- 1. 플랫폼 선택 (둘 다 비활성화 상태로 시작) -->
+      <!-- 1. 플랫폼 선택 -->
       <label id="platformLabel">방송 플랫폼 선택 <span style="color:#ef4444;">*</span></label>
       <div class="platform-group" id="platformArea">
         <button type="button" class="platform-btn yt" id="btnYt" onclick="selectPlatform('유튜브')">
@@ -213,31 +212,31 @@
       <input type="hidden" id="selectedPlatform" value="">
 
       <!-- 2. 방송 닉네임 -->
-      <label>방송 닉네임 (아이디)</label>
-      <input type="text" id="live_nick" placeholder="방송에서 사용하시는 닉네임" required>
+      <label>방송 닉네임 (아이디) <span style="color:#ef4444;">*</span></label>
+      <input type="text" id="live_nick" placeholder="방송에서 사용하시는 닉네임">
 
       <!-- 3. 입금자명 -->
-      <label>입금자명 (받으시는 분 성함)</label>
-      <input type="text" id="customer_name" placeholder="홍길동" required>
+      <label>입금자명 (받으시는 분 성함) <span style="color:#ef4444;">*</span></label>
+      <input type="text" id="customer_name" placeholder="홍길동">
 
       <!-- 4. 연락처 -->
-      <label>연락처 (휴대폰 11자리)</label>
-      <input type="tel" id="phone_number" placeholder="010-1234-5678" maxlength="13" required>
+      <label>연락처 (휴대폰 11자리) <span style="color:#ef4444;">*</span></label>
+      <input type="tel" id="phone_number" placeholder="010-1234-5678" maxlength="13">
 
       <!-- 5. 주소 -->
-      <label>주소</label>
+      <label>주소 <span style="color:#ef4444;">*</span></label>
       <button type="button" class="search-btn" onclick="openDaumPostcode()">🔍 주소 검색하기</button>
-      <input type="text" id="base_address" placeholder="기본 주소가 자동 입력됩니다" readonly style="background:#f9fafb; cursor:pointer; margin-bottom:8px;" onclick="openDaumPostcode()" required>
-      <input type="text" id="detail_address" placeholder="상세주소 입력 (예: 101동 202호)" required>
+      <input type="text" id="base_address" placeholder="기본 주소가 자동 입력됩니다" readonly style="background:#f9fafb; cursor:pointer; margin-bottom:8px;" onclick="openDaumPostcode()">
+      <input type="text" id="detail_address" placeholder="상세주소 입력 (예: 101동 202호)">
       <div class="guide-txt">* 정확한 배송을 위해 상세주소(동/호수)까지 꼭 적어주세요.</div>
 
       <!-- 개인정보 동의 -->
       <label class="agree-box">
-        <input type="checkbox" id="agreeChk" checked required>
+        <input type="checkbox" id="agreeChk" checked>
         <span>(필수) 개인정보 수집 및 배송 정보 제공에 동의합니다.</span>
       </label>
 
-      <!-- 버튼 문구 변경 -->
+      <!-- 버튼 문구 -->
       <button type="submit" class="submit-btn" id="submitBtn">배송지 등록하기!</button>
     </form>
   </div>
@@ -251,12 +250,11 @@
   </div>
 
   <script>
-    // 환경 설정
     const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxsYWPziRp_mENdFMs1clTunTqeGzzkm6n6Xzh-hCsHTHGCHsC77lt2BknWktAt-D5KmQ/exec";
     const SUPABASE_URL = "https://utgmqhwnztpvsvnxxlsd.supabase.co";
     const SUPABASE_KEY = "sb_publishable_KsWWBm4ekQXEo_aobNuxfA_uC6hdn5w";
 
-    // URL 파라미터에서 식별자(?rid=스페이스.채널.방번호) 또는 ?cid= 추출
+    // 식별자 파싱
     const urlParams = new URLSearchParams(window.location.search);
     const rid = urlParams.get('rid') || "";
     const cidFallback = urlParams.get('cid') || urlParams.get('uid') || "";
@@ -279,7 +277,6 @@
       fullChatRoomUrl = `https://business.kakao.com/space/${spaceId}/channel/${channelId}/chats/${kakaoChatId}`;
     }
 
-    // 타 경로 유입 엄격 차단 검증
     if (!kakaoChatId || kakaoChatId.length < 10) {
       document.body.innerHTML = `
         <div style="text-align:center; padding: 60px 20px;">
@@ -293,7 +290,6 @@
       throw new Error("비정상 유입 차단");
     }
 
-    // 플랫폼 선택 핸들러
     function selectPlatform(platform) {
       document.getElementById('selectedPlatform').value = platform;
       const btnYt = document.getElementById('btnYt');
@@ -308,7 +304,6 @@
       }
     }
 
-    // 우편번호 레이어 제어
     const layerWrap = document.getElementById('layerWrap');
     const postcodeLayer = document.getElementById('postcodeLayer');
 
@@ -331,11 +326,11 @@
       }).embed(postcodeLayer);
     }
 
-    // 폼 제출 검증 및 전송
+    // 폼 제출 엄격 검증 및 전송 핸들러
     document.getElementById('deliveryForm').addEventListener('submit', async function(e) {
       e.preventDefault();
 
-      // [필수 검증]: 플랫폼 미선택 시 차단
+      // 1. 플랫폼 선택 검증
       const platform = document.getElementById('selectedPlatform').value;
       if (!platform) {
         alert("방송 플랫폼(유튜브 또는 틱톡)을 먼저 선택해 주세요! 😊");
@@ -347,17 +342,58 @@
         return;
       }
 
+      // 2. 방송 닉네임 검증
+      const liveNick = document.getElementById('live_nick').value.trim();
+      if (!liveNick) {
+        alert("방송에서 사용하시는 닉네임을 입력해 주세요.");
+        document.getElementById('live_nick').focus();
+        return;
+      }
+
+      // 3. 입금자명 검증
+      const customerName = document.getElementById('customer_name').value.trim();
+      if (!customerName) {
+        alert("입금자명(받으시는 분 성함)을 입력해 주세요.");
+        document.getElementById('customer_name').focus();
+        return;
+      }
+
+      // 4. 연락처 검증
+      const phoneNumber = document.getElementById('phone_number').value.trim();
+      if (!phoneNumber || phoneNumber.length < 10) {
+        alert("연락처를 올바르게 입력해 주세요 (예: 010-1234-5678).");
+        document.getElementById('phone_number').focus();
+        return;
+      }
+
+      // 5. 기본 주소 검증 (우편번호 검색 필수)
+      const baseAddr = document.getElementById('base_address').value.trim();
+      if (!baseAddr) {
+        alert("🔍 [주소 검색하기] 버튼을 눌러 기본 주소를 먼저 검색해 주세요!");
+        openDaumPostcode();
+        return;
+      }
+
+      // 6. 상세주소 검증
+      const detailAddr = document.getElementById('detail_address').value.trim();
+      if (!detailAddr) {
+        alert("상세주소(동, 호수 등)를 입력해 주세요.");
+        document.getElementById('detail_address').focus();
+        return;
+      }
+
+      // 7. 개인정보 동의 검증
+      const agreeChk = document.getElementById('agreeChk').checked;
+      if (!agreeChk) {
+        alert("개인정보 수집 및 제공에 동의해 주세요.");
+        return;
+      }
+
       const btn = document.getElementById('submitBtn');
       btn.innerText = "안전하게 저장 중...";
       btn.disabled = true;
 
-      const liveNick = document.getElementById('live_nick').value.trim();
       const formattedNick = `[${platform}] ${liveNick}`;
-
-      const customerName = document.getElementById('customer_name').value.trim();
-      const phoneNumber = document.getElementById('phone_number').value.trim();
-      const baseAddr = document.getElementById('base_address').value.trim();
-      const detailAddr = document.getElementById('detail_address').value.trim();
       const fullAddress = `${baseAddr} ${detailAddr}`.trim();
 
       const payload = {
