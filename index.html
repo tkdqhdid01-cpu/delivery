@@ -197,11 +197,10 @@
 <body>
 
   <div class="card" id="formCard">
-    <!-- 제목 변경 -->
     <h2>🚚 배송지 등록</h2>
     <form id="deliveryForm">
 
-      <!-- 1. 플랫폼 선택 (처음에는 둘 다 비활성화) -->
+      <!-- 1. 플랫폼 선택 (둘 다 비활성화 상태로 시작) -->
       <label id="platformLabel">방송 플랫폼 선택 <span style="color:#ef4444;">*</span></label>
       <div class="platform-group" id="platformArea">
         <button type="button" class="platform-btn yt" id="btnYt" onclick="selectPlatform('유튜브')">
@@ -238,7 +237,8 @@
         <span>(필수) 개인정보 수집 및 배송 정보 제공에 동의합니다.</span>
       </label>
 
-      <button type="submit" class="submit-btn" id="submitBtn">배송 정보 등록 완료</button>
+      <!-- 버튼 문구 변경 -->
+      <button type="submit" class="submit-btn" id="submitBtn">배송지 등록하기!</button>
     </form>
   </div>
 
@@ -335,7 +335,7 @@
     document.getElementById('deliveryForm').addEventListener('submit', async function(e) {
       e.preventDefault();
 
-      // [필수 조건]: 유튜브 또는 틱톡 미선택 시 제출 차단
+      // [필수 검증]: 플랫폼 미선택 시 차단
       const platform = document.getElementById('selectedPlatform').value;
       if (!platform) {
         alert("방송 플랫폼(유튜브 또는 틱톡)을 먼저 선택해 주세요! 😊");
@@ -394,11 +394,11 @@
         }).catch(() => null);
 
         alert("✅ 배송 정보 등록이 완료되었습니다!\n카카오톡 대화방으로 돌아가셔도 좋습니다.");
-        btn.innerText = "등록 완료됨";
+        btn.innerText = "등록 완료됨!";
       } catch (err) {
         alert("등록 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
         btn.disabled = false;
-        btn.innerText = "배송 정보 등록 완료";
+        btn.innerText = "배송지 등록하기!";
       }
     });
   </script>
