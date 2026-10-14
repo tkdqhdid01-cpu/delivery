@@ -211,7 +211,7 @@
       <label>입금자명 (받으시는 분 성함) <span style="color:#ef4444;">*</span></label>
       <input type="text" id="customer_name" placeholder="홍길동">
 
-      <!-- 4. 연락처 -->
+      <!-- 4. 연락처 (자동 하이픈 적용) -->
       <label>연락처 (휴대폰 11자리) <span style="color:#ef4444;">*</span></label>
       <input type="tel" id="phone_number" placeholder="010-1234-5678" maxlength="13">
 
@@ -260,7 +260,6 @@
         spaceId = parts[0];
         channelId = parts[1];
         chatId = parts[2];
-        // [핵심]: 완전한 카카오 채팅방 풀 주소 생성
         fullChatRoomUrl = `https://business.kakao.com/space/${spaceId}/channel/${channelId}/chats/${chatId}`;
       }
     } else if (cidFallback) {
@@ -280,6 +279,21 @@
       `;
       throw new Error("비정상 유입 차단");
     }
+
+    // [전화번호 실시간 자동 하이픈 (-) 처리]
+    const phoneInput = document.getElementById('phone_number');
+    phoneInput.addEventListener('input', function(e) {
+      let val = e.target.value.replace(/[^0-9]/g, '');
+      if (val.length > 11) val = val.slice(0, 11);
+      
+      if (val.length <= 3) {
+        e.target.value = val;
+      } else if (val.length <= 7) {
+        e.target.value = val.slice(0, 3) + '-' + val.slice(3);
+      } else {
+        e.target.value = val.slice(0, 3) + '-' + val.slice(3, 7) + '-' + val.slice(7);
+      }
+    });
 
     function selectPlatform(p) {
       document.getElementById('selectedPlatform').value = p;
@@ -345,12 +359,15 @@
         return;
       }
 
-      const phoneNumber = document.getElementById('phone_number').value.trim();
-      if (!phoneNumber || phoneNumber.length < 10) {
-        alert("연락처를 올바르게 입력해 주세요 (예: 010-1234-5678).");
+      // [연락처 하이픈 규격 검증 및 포맷팅]
+      let rawPhone = document.getElementById('phone_number').value.replace(/[^0-9]/g, '');
+      if (rawPhone.length !== 11 || !rawPhone.startsWith('010')) {
+        alert("휴대폰 번호 11자리를 정확히 입력해 주세요 (예: 010-1234-5678).");
         document.getElementById('phone_number').focus();
         return;
       }
+      // 무조건 010-XXXX-XXXX 하이픈 형식으로 고정
+      const formattedPhone = `${rawPhone.slice(0, 3)}-${rawPhone.slice(3, 7)}-${rawPhone.slice(7)}`;
 
       const baseAddr = document.getElementById('base_address').value.trim();
       if (!baseAddr) {
@@ -378,11 +395,11 @@
 
       const fullAddress = `${baseAddr} ${detailAddr}`.trim();
 
-      // [핵심]: kakao_user_id에 채팅방 전체 URL 저장
+      // [핵심 payload]: 하이픈이 들어간 번호로 전송
       const payload = {
         kakao_user_id: fullChatRoomUrl,
         customer_name: customerName,
-        phone_number: phoneNumber,
+        phone_number: formattedPhone, // 010-4721-7273 형태로 저장
         full_address: fullAddress,
         youtube_id: (platform === 'youtube') ? liveNick : null,
         tiktok_id: (platform === 'tiktok') ? liveNick : null
@@ -405,7 +422,7 @@
           throw new Error(`Supabase 저장 거절 (${supabaseRes.status}): ${errDetail}`);
         }
 
-        // 구글 시트 전송 병행 (B열에도 동일한 전체 채팅방 URL 저장)
+        // 구글 시트 전송 병행
         fetch(GOOGLE_SCRIPT_URL, {
           method: "POST",
           mode: "no-cors",
