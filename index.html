@@ -158,25 +158,25 @@
   </div>
 
   <script>
-    // 1. 구글 Apps Script 배포 URL (사장님 웹 앱 URL)
+    // 1. 구글 Apps Script 배포 URL
     const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbycUV4eJgGvYrMt_HgfsYlea_waNpNOucO9pRtjFOtHShXbCJohqbl1BNtW2ixcl3cyJQ/exec";
     
     // 2. Supabase REST API 설정
     const SUPABASE_URL = "https://utgmqhwnztpvsvnxxlsd.supabase.co";
     const SUPABASE_KEY = "sb_publishable_KsWWBm4ekQXEo_aobNuxfA_uC6hdn5w";
 
-    // 3. URL 파라미터에서 순수 카카오 고유번호 추출 (?rid=스페이스.채널.유저ID 또는 ?uid=... 또는 ?cid=...)
+    // 3. URL 파라미터에서 순수 카카오 고유번호 추출 (?uid=... 또는 ?rid=...)
     const urlParams = new URLSearchParams(window.location.search);
-    const rawId = urlParams.get('rid') || urlParams.get('uid') || urlParams.get('cid') || "";
+    const rawId = urlParams.get('uid') || urlParams.get('rid') || urlParams.get('cid') || "";
     
-    // 점(.)으로 분리되어 있으면 맨 뒤의 순수 64자리 카카오 고유 해시값만 남김
+    // 점(.)으로 분리되어 있던 과거 링크도 안전하게 뒷부분(고유 ID)만 추출
     let kakaoUserId = rawId;
     if (rawId.includes('.')) {
       const parts = rawId.split('.');
       kakaoUserId = parts[parts.length - 1];
     }
 
-    // [비정상 유입 차단]: 카카오 고유 ID가 없으면 폼 진입 차단
+    // [비정상 유입 차단]: 고유번호가 없으면 폼 진입 차단
     if (!kakaoUserId || kakaoUserId.length < 5) {
       document.body.innerHTML = `
         <div style="text-align:center; padding: 70px 20px; font-family: sans-serif;">
@@ -190,7 +190,7 @@
       throw new Error("유효하지 않은 접근");
     }
 
-    // 전화번호 입력 시 하이픈 자동 생성
+    // 휴대폰 번호 입력 시 하이픈 자동 생성
     const phoneInput = document.getElementById('phone_number');
     phoneInput.addEventListener('input', function(e) {
       let val = e.target.value.replace(/[^0-9]/g, '');
@@ -202,7 +202,7 @@
       e.target.value = val;
     });
 
-    // Daum 주소 검색 모달 제어
+    // Daum 우편번호 창 제어
     const layerWrap = document.getElementById('layerWrap');
     const postcodeLayer = document.getElementById('postcodeLayer');
 
@@ -264,7 +264,7 @@
       };
 
       try {
-        // 1. Supabase 업서트 (초고속 DB 저장)
+        // 1. Supabase 업서트
         const supabasePromise = fetch(`${SUPABASE_URL}/rest/v1/customers`, {
           method: "POST",
           headers: {
@@ -284,7 +284,6 @@
           body: JSON.stringify(payload)
         }).catch(err => console.error("Google Script Error:", err));
 
-        // 두 저장 동시 처리
         await Promise.all([supabasePromise, googlePromise]);
 
         alert("✅ 배송 정보 등록이 완료되었습니다!\n채팅창으로 돌아가셔도 좋습니다 😊");
