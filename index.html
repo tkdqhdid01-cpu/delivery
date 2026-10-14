@@ -44,7 +44,7 @@
       margin-bottom: 6px;
     }
 
-    /* 플랫폼 선택 버튼 (유튜브 / 틱톡) */
+    /* 플랫폼 선택 버튼 */
     .platform-group {
       display: flex;
       gap: 10px;
@@ -66,9 +66,7 @@
       gap: 6px;
       transition: all 0.2s ease;
     }
-    .platform-btn:hover {
-      background: #f3f4f6;
-    }
+    .platform-btn:hover { background: #f3f4f6; }
     .platform-btn.active.yt {
       border-color: #ff0000;
       background: #fff5f5;
@@ -90,9 +88,7 @@
       outline: none;
       transition: border-color 0.2s;
     }
-    input:focus {
-      border-color: #3b82f6;
-    }
+    input:focus { border-color: #3b82f6; }
     .search-btn {
       width: 100%;
       height: 46px;
@@ -109,11 +105,7 @@
       justify-content: center;
       gap: 6px;
     }
-    .guide-txt {
-      font-size: 12px;
-      color: #888;
-      margin-top: 6px;
-    }
+    .guide-txt { font-size: 12px; color: #888; margin-top: 6px; }
     .agree-box {
       background: #f9fafb;
       border-radius: 10px;
@@ -153,7 +145,6 @@
       cursor: not-allowed;
     }
 
-    /* 우편번호 레이어 팝업 */
     #layerWrap {
       display: none;
       position: fixed;
@@ -236,12 +227,11 @@
         <span>(필수) 개인정보 수집 및 배송 정보 제공에 동의합니다.</span>
       </label>
 
-      <!-- 버튼 문구 -->
+      <!-- 버튼 -->
       <button type="submit" class="submit-btn" id="submitBtn">배송지 등록하기!</button>
     </form>
   </div>
 
-  <!-- 우편번호 레이어 -->
   <div id="layerWrap">
     <div id="layerBox">
       <button type="button" id="btnCloseLayer" onclick="closeDaumPostcode()">✕</button>
@@ -259,22 +249,12 @@
     const rid = urlParams.get('rid') || "";
     const cidFallback = urlParams.get('cid') || urlParams.get('uid') || "";
 
-    let spaceId = "10499439";
-    let channelId = "_cxlBGX";
     let kakaoChatId = "";
-    let fullChatRoomUrl = "";
-
     if (rid && rid.includes('.')) {
       const parts = rid.split('.');
-      if (parts.length === 3) {
-        spaceId = parts[0];
-        channelId = parts[1];
-        kakaoChatId = parts[2];
-        fullChatRoomUrl = `https://business.kakao.com/space/${spaceId}/channel/${channelId}/chats/${kakaoChatId}`;
-      }
+      if (parts.length === 3) kakaoChatId = parts[2];
     } else if (cidFallback) {
       kakaoChatId = cidFallback;
-      fullChatRoomUrl = `https://business.kakao.com/space/${spaceId}/channel/${channelId}/chats/${kakaoChatId}`;
     }
 
     if (!kakaoChatId || kakaoChatId.length < 10) {
@@ -326,11 +306,9 @@
       }).embed(postcodeLayer);
     }
 
-    // 폼 제출 검증 및 Supabase 확실한 Upsert 처리
     document.getElementById('deliveryForm').addEventListener('submit', async function(e) {
       e.preventDefault();
 
-      // 1. 플랫폼 선택 검증
       const platform = document.getElementById('selectedPlatform').value;
       if (!platform) {
         alert("방송 플랫폼(유튜브 또는 틱톡)을 먼저 선택해 주세요! 😊");
@@ -342,7 +320,6 @@
         return;
       }
 
-      // 2. 방송 닉네임 검증
       const liveNick = document.getElementById('live_nick').value.trim();
       if (!liveNick) {
         alert("방송에서 사용하시는 닉네임을 입력해 주세요.");
@@ -350,7 +327,6 @@
         return;
       }
 
-      // 3. 입금자명 검증
       const customerName = document.getElementById('customer_name').value.trim();
       if (!customerName) {
         alert("입금자명(받으시는 분 성함)을 입력해 주세요.");
@@ -358,7 +334,6 @@
         return;
       }
 
-      // 4. 연락처 검증
       const phoneNumber = document.getElementById('phone_number').value.trim();
       if (!phoneNumber || phoneNumber.length < 10) {
         alert("연락처를 올바르게 입력해 주세요 (예: 010-1234-5678).");
@@ -366,7 +341,6 @@
         return;
       }
 
-      // 5. 기본 주소 검증
       const baseAddr = document.getElementById('base_address').value.trim();
       if (!baseAddr) {
         alert("🔍 [주소 검색하기] 버튼을 눌러 기본 주소를 먼저 검색해 주세요!");
@@ -374,7 +348,6 @@
         return;
       }
 
-      // 6. 상세주소 검증
       const detailAddr = document.getElementById('detail_address').value.trim();
       if (!detailAddr) {
         alert("상세주소(동, 호수 등)를 입력해 주세요.");
@@ -382,7 +355,6 @@
         return;
       }
 
-      // 7. 개인정보 동의 검증
       const agreeChk = document.getElementById('agreeChk').checked;
       if (!agreeChk) {
         alert("개인정보 수집 및 제공에 동의해 주세요.");
@@ -393,26 +365,19 @@
       btn.innerText = "안전하게 저장 중...";
       btn.disabled = true;
 
-      // 플랫폼 분기
-      const youtubeVal = (platform === '유튜브') ? liveNick : null;
-      const tiktokVal = (platform === '틱톡') ? liveNick : null;
+      // [핵심]: 오직 DB에 실존하는 5개 컬럼만 군더더기 없이 조립
       const fullAddress = `${baseAddr} ${detailAddr}`.trim();
-
       const payload = {
         kakao_user_id: kakaoChatId,
-        chat_id: kakaoChatId,
-        kakao_chat_url: fullChatRoomUrl,
         customer_name: customerName,
         phone_number: phoneNumber,
         full_address: fullAddress,
-        youtube_id: youtubeVal,
-        tiktok_id: tiktokVal,
-        platform: platform,
-        updated_at: new Date().toISOString()
+        youtube_id: (platform === '유튜브') ? liveNick : null,
+        tiktok_id: (platform === '틱톡') ? liveNick : null
       };
 
       try {
-        // [핵심 해결]: on_conflict=kakao_user_id 명시로 무조건 덮어쓰기/신규등록 성공 보장
+        // Supabase UPSERT 요청
         const supabaseRes = await fetch(`${SUPABASE_URL}/rest/v1/customers?on_conflict=kakao_user_id`, {
           method: "POST",
           headers: {
@@ -425,12 +390,12 @@
         });
 
         if (!supabaseRes.ok) {
-          const errText = await supabaseRes.text();
-          throw new Error(`Supabase DB 오류 (${supabaseRes.status}): ${errText}`);
+          const errDetail = await supabaseRes.text();
+          throw new Error(`Supabase 저장 거절 (${supabaseRes.status}): ${errDetail}`);
         }
 
-        // 구글 시트 저장 병행
-        await fetch(GOOGLE_SCRIPT_URL, {
+        // 구글 시트 전송 병행
+        fetch(GOOGLE_SCRIPT_URL, {
           method: "POST",
           mode: "no-cors",
           headers: { "Content-Type": "application/json" },
