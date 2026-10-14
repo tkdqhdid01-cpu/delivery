@@ -326,7 +326,7 @@
       }).embed(postcodeLayer);
     }
 
-    // 폼 제출 엄격 검증 및 전송 핸들러
+    // 폼 제출 검증 및 Supabase 확실한 Upsert 처리
     document.getElementById('deliveryForm').addEventListener('submit', async function(e) {
       e.preventDefault();
 
@@ -393,7 +393,7 @@
       btn.innerText = "안전하게 저장 중...";
       btn.disabled = true;
 
-      // [핵심] 플랫폼에 따라 유튜브 ID / 틱톡 ID 컬럼 분기 분리
+      // 플랫폼 분기
       const youtubeVal = (platform === '유튜브') ? liveNick : null;
       const tiktokVal = (platform === '틱톡') ? liveNick : null;
       const fullAddress = `${baseAddr} ${detailAddr}`.trim();
@@ -412,8 +412,8 @@
       };
 
       try {
-        // 1. Supabase DB 저장 (youtube_id, tiktok_id 각각 저장)
-        await fetch(`${SUPABASE_URL}/rest/v1/customers`, {
+        // [핵심 해결]: on_conflict=kakao_user_id 명시로 무조건 덮어쓰기/신규등록 성공 보장
+        const supabaseRes = await fetch(`${SUPABASE_URL}/rest/v1/customers?on_conflict=kakao_user_id`, {
           method: "POST",
           headers: {
             "apikey": SUPABASE_KEY,
@@ -422,9 +422,14 @@
             "Prefer": "resolution=merge-duplicates"
           },
           body: JSON.stringify(payload)
-        }).catch(() => null);
+        });
 
-        // 2. Google Apps Script 구글 시트 저장
+        if (!supabaseRes.ok) {
+          const errText = await supabaseRes.text();
+          throw new Error(`Supabase DB 오류 (${supabaseRes.status}): ${errText}`);
+        }
+
+        // 구글 시트 저장 병행
         await fetch(GOOGLE_SCRIPT_URL, {
           method: "POST",
           mode: "no-cors",
@@ -435,7 +440,7 @@
         alert("✅ 배송 정보 등록이 완료되었습니다!\n카카오톡 대화방으로 돌아가셔도 좋습니다.");
         btn.innerText = "등록 완료됨!";
       } catch (err) {
-        alert("등록 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
+        alert(err.message || "등록 중 오류가 발생했습니다.");
         btn.disabled = false;
         btn.innerText = "배송지 등록하기!";
       }
