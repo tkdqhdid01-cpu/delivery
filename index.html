@@ -142,7 +142,7 @@
 
   <script>
     // 1. 방금 새로 발급받으신 최신 구글 Apps Script Web App 배포 URL 적용!
-    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzfQsn_xLKNroY6i8kOEswtS6O3YkCgZ3mGrO0onmRT2djFooePoFgGivBMTazBDjN_AA/exec";
+    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwRuDek3HVGltp_HM3_FRT0M8aWYVv6tlqfgoQb4xOciIzFrBKVDWPcT5kdXyU28efbqg/exec";
     
     // 2. Supabase REST API 설정
     const SUPABASE_URL = "https://utgmqhwnztpvsvnxxlsd.supabase.co";
@@ -234,7 +234,6 @@
       const fullAddress = baseAddr + " " + detailAddr;
       const ytNick = document.getElementById('youtube_nick').value.trim();
 
-      // kakao_user_id와 kakao_chat_url 모두에 고유번호를 전달하여 컬럼 밀림 원천 차단
       const payload = {
         kakao_user_id: kakaoUserId,
         kakao_chat_url: kakaoUserId,
@@ -257,7 +256,7 @@
           body: JSON.stringify(payload)
         }).catch(err => console.error("Supabase Error:", err));
 
-        // 2. 구글 스프레드시트 기록 전송 (새 Web App URL로 직행)
+        // 2. 구글 스프레드시트 기록 전송 (새 Web App URL)
         const googlePromise = fetch(GOOGLE_SCRIPT_URL, {
           method: "POST",
           mode: "no-cors",
