@@ -44,7 +44,7 @@
       margin-bottom: 6px;
     }
 
-    /* 플랫폼 선택 버튼 */
+    /* 플랫폼 선택 버튼 (유튜브 / 틱톡) */
     .platform-group {
       display: flex;
       gap: 10px;
@@ -145,6 +145,7 @@
       cursor: not-allowed;
     }
 
+    /* 우편번호 레이어 */
     #layerWrap {
       display: none;
       position: fixed;
@@ -193,10 +194,10 @@
       <!-- 1. 플랫폼 선택 -->
       <label id="platformLabel">방송 플랫폼 선택 <span style="color:#ef4444;">*</span></label>
       <div class="platform-group" id="platformArea">
-        <button type="button" class="platform-btn yt" id="btnYt" onclick="selectPlatform('유튜브')">
+        <button type="button" class="platform-btn yt" id="btnYt" onclick="selectPlatform('youtube')">
           📺 유튜브
         </button>
-        <button type="button" class="platform-btn tt" id="btnTt" onclick="selectPlatform('틱톡')">
+        <button type="button" class="platform-btn tt" id="btnTt" onclick="selectPlatform('tiktok')">
           🎵 틱톡
         </button>
       </div>
@@ -227,11 +228,11 @@
         <span>(필수) 개인정보 수집 및 배송 정보 제공에 동의합니다.</span>
       </label>
 
-      <!-- 버튼 -->
       <button type="submit" class="submit-btn" id="submitBtn">배송지 등록하기!</button>
     </form>
   </div>
 
+  <!-- 우편번호 레이어 -->
   <div id="layerWrap">
     <div id="layerBox">
       <button type="button" id="btnCloseLayer" onclick="closeDaumPostcode()">✕</button>
@@ -244,7 +245,7 @@
     const SUPABASE_URL = "https://utgmqhwnztpvsvnxxlsd.supabase.co";
     const SUPABASE_KEY = "sb_publishable_KsWWBm4ekQXEo_aobNuxfA_uC6hdn5w";
 
-    // 식별자 파싱
+    // 식별자 파싱 (?rid=스페이스.채널.방번호)
     const urlParams = new URLSearchParams(window.location.search);
     const rid = urlParams.get('rid') || "";
     const cidFallback = urlParams.get('cid') || urlParams.get('uid') || "";
@@ -270,15 +271,15 @@
       throw new Error("비정상 유입 차단");
     }
 
-    function selectPlatform(platform) {
-      document.getElementById('selectedPlatform').value = platform;
+    function selectPlatform(p) {
+      document.getElementById('selectedPlatform').value = p;
       const btnYt = document.getElementById('btnYt');
       const btnTt = document.getElementById('btnTt');
 
-      if (platform === '유튜브') {
+      if (p === 'youtube') {
         btnYt.classList.add('active');
         btnTt.classList.remove('active');
-      } else if (platform === '틱톡') {
+      } else if (p === 'tiktok') {
         btnTt.classList.add('active');
         btnYt.classList.remove('active');
       }
@@ -365,19 +366,21 @@
       btn.innerText = "안전하게 저장 중...";
       btn.disabled = true;
 
-      // [핵심]: 오직 DB에 실존하는 5개 컬럼만 군더더기 없이 조립
       const fullAddress = `${baseAddr} ${detailAddr}`.trim();
+
+      // [핵심]: 오직 5개 순수 컬럼만 전송!
+      // 유튜브 선택 시 -> youtube_id에 순수 닉네임만 들어감
+      // 틱톡 선택 시 -> tiktok_id에 순수 닉네임만 들어감
       const payload = {
         kakao_user_id: kakaoChatId,
         customer_name: customerName,
         phone_number: phoneNumber,
         full_address: fullAddress,
-        youtube_id: (platform === '유튜브') ? liveNick : null,
-        tiktok_id: (platform === '틱톡') ? liveNick : null
+        youtube_id: (platform === 'youtube') ? liveNick : null,
+        tiktok_id: (platform === 'tiktok') ? liveNick : null
       };
 
       try {
-        // Supabase UPSERT 요청
         const supabaseRes = await fetch(`${SUPABASE_URL}/rest/v1/customers?on_conflict=kakao_user_id`, {
           method: "POST",
           headers: {
@@ -394,7 +397,7 @@
           throw new Error(`Supabase 저장 거절 (${supabaseRes.status}): ${errDetail}`);
         }
 
-        // 구글 시트 전송 병행
+        // 구글 시트 백업 전송
         fetch(GOOGLE_SCRIPT_URL, {
           method: "POST",
           mode: "no-cors",
