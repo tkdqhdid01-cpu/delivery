@@ -44,7 +44,7 @@
       margin-bottom: 6px;
     }
 
-    /* 플랫폼 선택 버튼 (유튜브 / 틱톡) */
+    /* 플랫폼 선택 버튼 */
     .platform-group {
       display: flex;
       gap: 10px;
@@ -232,7 +232,6 @@
     </form>
   </div>
 
-  <!-- 우편번호 레이어 -->
   <div id="layerWrap">
     <div id="layerBox">
       <button type="button" id="btnCloseLayer" onclick="closeDaumPostcode()">✕</button>
@@ -250,15 +249,26 @@
     const rid = urlParams.get('rid') || "";
     const cidFallback = urlParams.get('cid') || urlParams.get('uid') || "";
 
-    let kakaoChatId = "";
+    let spaceId = "10699492";
+    let channelId = "_uKGxiX";
+    let chatId = "";
+    let fullChatRoomUrl = "";
+
     if (rid && rid.includes('.')) {
       const parts = rid.split('.');
-      if (parts.length === 3) kakaoChatId = parts[2];
+      if (parts.length === 3) {
+        spaceId = parts[0];
+        channelId = parts[1];
+        chatId = parts[2];
+        // [핵심]: 완전한 카카오 채팅방 풀 주소 생성
+        fullChatRoomUrl = `https://business.kakao.com/space/${spaceId}/channel/${channelId}/chats/${chatId}`;
+      }
     } else if (cidFallback) {
-      kakaoChatId = cidFallback;
+      chatId = cidFallback;
+      fullChatRoomUrl = `https://business.kakao.com/space/${spaceId}/channel/${channelId}/chats/${chatId}`;
     }
 
-    if (!kakaoChatId || kakaoChatId.length < 10) {
+    if (!fullChatRoomUrl || !chatId || chatId.length < 10) {
       document.body.innerHTML = `
         <div style="text-align:center; padding: 60px 20px;">
           <h2 style="color:#d9534f; margin-bottom:15px;">⚠️ 유효하지 않은 접근입니다</h2>
@@ -368,11 +378,9 @@
 
       const fullAddress = `${baseAddr} ${detailAddr}`.trim();
 
-      // [핵심]: 오직 5개 순수 컬럼만 전송!
-      // 유튜브 선택 시 -> youtube_id에 순수 닉네임만 들어감
-      // 틱톡 선택 시 -> tiktok_id에 순수 닉네임만 들어감
+      // [핵심]: kakao_user_id에 채팅방 전체 URL 저장
       const payload = {
-        kakao_user_id: kakaoChatId,
+        kakao_user_id: fullChatRoomUrl,
         customer_name: customerName,
         phone_number: phoneNumber,
         full_address: fullAddress,
@@ -397,7 +405,7 @@
           throw new Error(`Supabase 저장 거절 (${supabaseRes.status}): ${errDetail}`);
         }
 
-        // 구글 시트 백업 전송
+        // 구글 시트 전송 병행 (B열에도 동일한 전체 채팅방 URL 저장)
         fetch(GOOGLE_SCRIPT_URL, {
           method: "POST",
           mode: "no-cors",
