@@ -113,8 +113,9 @@
     <h2>🚚 알맹샵 배송 정보 등록</h2>
 
     <form id="deliveryForm">
-      <label>유튜브 닉네임 (선택)</label>
-      <input type="text" id="youtube_nick" placeholder="유튜브 방송 닉네임">
+      <label>유튜브 닉네임 <span style="color:#e11d48;">*</span></label>
+      <input type="text" id="youtube_nick" placeholder="유튜브 방송 닉네임" required>
+      <div class="guide-txt">* 방송 채팅창에 보이는 닉네임을 그대로 적어주세요.</div>
 
       <label>입금자명 / 성함 <span style="color:#e11d48;">*</span></label>
       <input type="text" id="customer_name" placeholder="홍길동" required>
@@ -204,8 +205,27 @@
 
       const baseAddr = document.getElementById('base_address').value.trim();
       const detailAddr = document.getElementById('detail_address').value.trim();
+
+      // 띄어쓰기만 입력한 경우까지 막기
+      const nickInput = document.getElementById('youtube_nick');
+      if (!nickInput.value.trim()) {
+        alert("⚠️ 유튜브 닉네임을 입력해 주세요.");
+        nickInput.focus();
+        return;
+      }
+      const nameInput = document.getElementById('customer_name');
+      if (!nameInput.value.trim()) {
+        alert("⚠️ 입금자명 / 성함을 입력해 주세요.");
+        nameInput.focus();
+        return;
+      }
       if (!baseAddr) {
         alert("⚠️ '주소 검색하기' 버튼을 눌러 기본 주소를 먼저 선택해 주세요.");
+        return;
+      }
+      if (!detailAddr) {
+        alert("⚠️ 상세주소(동·호수)를 입력해 주세요.");
+        document.getElementById('detail_address').focus();
         return;
       }
 
